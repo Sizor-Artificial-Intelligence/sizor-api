@@ -1,0 +1,39 @@
+{
+  "name": "api-sizor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "rollback": "node rollback.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "form-data": "^4.0.2",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.11.0",
+    "mysql2": "^3.16.0",
+    "node-cron": "^4.2.1",
+    "node-forge": "^1.3.1",
+    "nodemailer": "^6.9.16",
+    "nodemon": "^3.1.7",
+    "officeparser": "^6.0.2",
+    "pdf-parse": "^1.1.1",
+    "pvtsutils": "^1.3.6",
+    "resend": "^4.5.1",
+    "ws": "^8.18.3",
+    "xadesjs": "^2.4.4",
+    "xml-crypto": "^6.1.2",
+    "xmlbuilder2": "^3.1.1",
+    "xmldom": "^0.6.0",
+    "xmldsigjs": "^2.6.1"
+  }
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%"
+        style="max-width: 700px; margin: 20px auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden;">
+
+        <!-- Header -->
+        <tr>
+            <td
+                style="padding: 40px 40px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); text-align: center;">
+                <div
+                    style="background-color: #ffffff; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px auto; display: flex; align-items: center; justify-content: center;">
+                    <span style="color: #4caf50; font-size: 30px;">$</span>
+                </div>
+                <h1 style="color: #ffffff; font-size: 26px; margin: 0 0 10px 0; font-weight: 600;">¡Pago Procesado
+                    Exitosamente!</h1>
+                <p style="color: #e8f5e8; font-size: 16px; margin: 0;">{{app_name}}</p>
+            </td>
+        </tr>
+
+        <!-- Payment Summary -->
+        <tr>
+            <td style="padding: 30px 40px 20px 40px;">
+                <div
+                    style="background-color: #e8f5e8; padding: 25px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #4caf50;">
+                    <h2 style="color: #2e7d32; font-size: 20px; margin: 0 0 15px 0; font-weight: 600;">📊 Resumen del
+                        Pago</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #4a4a4a; font-size: 16px; font-weight: 600; width: 30%;">
+                                Monto:</td>
+                            <td style="padding: 8px 0; color: #2e7d32; font-size: 18px; font-weight: 700;">${{price}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #4a4a4a; font-size: 16px; font-weight: 600;">Licencia:
+                            </td>
+                            <td
+                                style="padding: 8px 0; color: #1a1a1a; font-size: 16px; font-family: 'Courier New', monospace; background-color: #f0f0f0; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                                {{tenantId}}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #4a4a4a; font-size: 16px; font-weight: 600;">Tipo:</td>
+                            <td style="padding: 8px 0; color: #1a1a1a; font-size: 16px;">{{type}}</td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+        </tr>
+
+        <!-- Payment Details -->
+        <tr>
+            <td style="padding: 0 40px 20px 40px;">
+                <h3 style="color: #1a1a1a; font-size: 18px; margin: 0 0 15px 0; font-weight: 600;">📋 Detalles de la
+                    Transacción</h3>
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0;">
+                    <pre
+                        style="background-color: #ffffff; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0; font-family: 'Courier New', monospace; font-size: 13px; color: #333; margin: 0; white-space: pre-wrap; word-wrap: break-word; line-height: 1.4; overflow-x: auto;">{{metadata}}</pre>
+                </div>
+            </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+            <td
+                style="background-color: #f8f9fa; padding: 20px 40px; text-align: center; border-top: 1px solid #eeeeee;">
+                <p style="color: #1a1a1a; font-size: 14px; font-weight: 600; margin: 0 0 5px 0;">
+                    {{app_name}}
+                </p>
+                <p style="color: #6a6a6a; font-size: 12px; margin: 0;">
+                    Esta es una notificación automática del sistema de pagos
+                </p>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>
