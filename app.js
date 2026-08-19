@@ -12,10 +12,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors({ origin: "*" }));
 
-// Middleware para verificar la API Key (excluir WebSocket)
+app.get("/health", (_req, res) => {
+  res.status(200).type("text/plain").send("OK");
+});
+
+/**
+ * Verificar API Key
+ */
 function checkApiKey(req, res, next) {
-  // Excluir la ruta del WebSocket del middleware de autenticación
-  if (req.url.startsWith("/ws")) {
+  if (req.url.startsWith("/ws") || req.url.startsWith("/health")) {
     return next();
   }
 
@@ -42,19 +47,16 @@ async function startConsumer() {
   }
 }
 
-// Configuración del puerto
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || "0.0.0.0";
 
-// Crear servidor HTTP
 const server = http.createServer(app);
 
-// Inicializar WebSocket
 wsManager.initialize(server);
 
-// Iniciar servidor
-server.listen(PORT, async () => {
-  console.log(`🚀 Servidor API en ejecución en el puerto: ${PORT}`);
-  console.log(`🔌 WebSocket disponible en: ws://localhost:${PORT}/ws`);
+server.listen(PORT, HOST, async () => {
+  console.log(`🚀 Servidor API en ejecución en ${HOST}:${PORT}`);
+  console.log(`🔌 WebSocket disponible en: ws://${HOST}:${PORT}/ws`);
 
   // Iniciar servicios en paralelo
   await Promise.all([startConsumer(), initializeScheduler()]);
