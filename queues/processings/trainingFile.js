@@ -1,4 +1,4 @@
-const { getDatabaseConnection } = require("../../controllers/database");
+const { updateTrainingFileStatus } = require("../../controllers/database/matudb");
 const {
   extractFileContent,
   splitTextForEmbeddings,
@@ -9,7 +9,7 @@ const wsManager = require("../../services/websocket");
 
 async function processTrainingFile(message) {
   try {
-    const { fileUrl, extension, tenantId, userId, action } = message;
+    const { fileUrl, extension, tenantId, companyId, userId, action } = message;
 
     // Crear embeddings para el archivo
     if (action === "create") {
@@ -39,12 +39,12 @@ async function processTrainingFile(message) {
         }
       }
 
-      // Actualizar el estado del archivo en la base de datos
-      const db = getDatabaseConnection(tenantId);
-      await db.query("UPDATE TrainingFile SET status = ? WHERE fileUrl = ?", [
-        status,
+      // Actualizar el estado del archivo en MatuDB (schema main)
+      await updateTrainingFileStatus(
         fileUrl,
-      ]);
+        status,
+        companyId || null
+      );
 
       // Realtime update
       wsManager.sendToUser(userId, {

@@ -269,10 +269,6 @@ async function processMessage(queue, message) {
   }
 }
 
-consumeAllMessages().catch((err) =>
-  console.error("Error general consumiendo mensajes:", err)
-);
-
 module.exports = {
   consumeAllMessages,
 };

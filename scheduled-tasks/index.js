@@ -24,12 +24,23 @@ function registerAllTasks() {
  * Registra todas las tareas y ejecuta las que deben correr al inicio
  */
 async function initializeScheduler() {
+  if (process.env.SCHEDULER_ENABLED === "false") {
+    console.warn(
+      "⚠️ Scheduler deshabilitado (SCHEDULER_ENABLED=false). Sin tareas al arrancar."
+    );
+    return;
+  }
+
   try {
     registerAllTasks();
     await scheduler.runStartupTasks();
     console.log("✅ Sistema de tareas programadas inicializado");
   } catch (error) {
     console.error("❌ Error inicializando scheduler:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.warn("⚠️ Continuando sin scheduler en desarrollo.");
+      return;
+    }
     throw error;
   }
 }

@@ -15,6 +15,13 @@ async function getChannel() {
 }
 
 async function addToQueue(queueName, data) {
+  if (process.env.RABBITMQ_ENABLED === "false") {
+    console.warn(
+      `⚠️ RabbitMQ off — mensaje a |${queueName}| no encolado (local sin broker)`
+    );
+    return;
+  }
+
   try {
     const channel = await getChannel();
     const queueOptions = { durable: true };

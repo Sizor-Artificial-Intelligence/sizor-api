@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@devjuanes/matuclient": "^2.3.0",
     "amqplib": "^0.10.5",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
