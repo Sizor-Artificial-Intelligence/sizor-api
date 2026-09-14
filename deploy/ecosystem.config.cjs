@@ -10,12 +10,13 @@ module.exports = {
       max_memory_restart: "512M",
       env: {
         NODE_ENV: "production",
-        PORT: 3001,
+        // 3001 ocupado en el VPS; usar 3101
+        PORT: 3101,
         HOST: "127.0.0.1",
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 3001,
+        PORT: 3101,
         HOST: "127.0.0.1",
       },
     },
