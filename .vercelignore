@@ -1,8 +1,0 @@
-.env
-.env.*
-!.env.example
-docker/
-deploy/
-.git/
-*.md
-node_modules/
