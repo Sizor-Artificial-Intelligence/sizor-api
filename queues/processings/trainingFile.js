@@ -7,53 +7,63 @@ const {
 } = require("../../controllers/fileController");
 const wsManager = require("../../services/websocket");
 
-async function processTrainingFile(message) {
+async function notifyRefresh(userId) {
+  if (!userId) return;
   try {
-    const { fileUrl, extension, tenantId, companyId, userId, action } = message;
+    wsManager.sendToUser(userId, {
+      timestamp: new Date().toISOString(),
+      type: "refreshLoaders",
+    });
+  } catch (err) {
+    console.warn("No se pudo notificar refreshLoaders:", err?.message || err);
+  }
+}
 
-    // Crear embeddings para el archivo
+async function markError(fileUrl, companyId, userId) {
+  try {
+    if (fileUrl) {
+      await updateTrainingFileStatus(fileUrl, "error", companyId || null);
+    }
+  } catch (err) {
+    console.error("No se pudo marcar training file como error:", err);
+  }
+  await notifyRefresh(userId);
+}
+
+async function processTrainingFile(message) {
+  const { fileUrl, extension, tenantId, companyId, userId, action } = message || {};
+
+  try {
     if (action === "create") {
       let status = "ready";
 
-      // # Extraer contenido del archivo
       const dataContent = await extractFileContent(fileUrl, extension);
       let content = dataContent?.text || null;
 
-      // Eliminar marcas de paginación solo si content no es null
       if (content && typeof content === "string") {
         content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
       }
 
-      console.log("DEBUG: Contenido del archivo -> " + content);
-
-      // # Si no se pudo extraer el contenido, cambiar estado del archivo a error
       if (!content) {
         status = "error";
       } else {
-        // # Dividir el contenido en fragmentos para embeddings
         const fragments = splitTextForEmbeddings(content);
-
-        // # Crear embeddings para los fragmentos
         if (fragments.length > 0) {
-          await createEmbeddingsForFragments(fragments, tenantId, fileUrl);
+          const embedded = await createEmbeddingsForFragments(
+            fragments,
+            tenantId,
+            fileUrl
+          );
+          if (!embedded) {
+            status = "error";
+          }
         }
       }
 
-      // Actualizar el estado del archivo en MatuDB (schema main)
-      await updateTrainingFileStatus(
-        fileUrl,
-        status,
-        companyId || null
-      );
-
-      // Realtime update
-      wsManager.sendToUser(userId, {
-        timestamp: new Date().toISOString(),
-        type: "refreshLoaders",
-      });
+      await updateTrainingFileStatus(fileUrl, status, companyId || null);
+      await notifyRefresh(userId);
     }
 
-    // Eliminar embeddings para el archivo
     if (action === "delete") {
       await deleteEmbeddingsForFiles(tenantId, [fileUrl]);
     }
@@ -64,6 +74,7 @@ async function processTrainingFile(message) {
     };
   } catch (error) {
     console.error("Error al procesar el archivo de entrenamiento:", error);
+    await markError(fileUrl, companyId, userId);
     return { status: "failed", error: error.message };
   }
 }

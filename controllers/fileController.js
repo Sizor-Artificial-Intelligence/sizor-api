@@ -545,20 +545,33 @@ function splitTextForEmbeddings(
   return recursiveSplit(text, 0);
 }
 
-// Crear embeddings para los fragmentos
+const EMBEDDING_CONCURRENCY = 6;
+
 async function createEmbeddingsForFragments(fragments = [], tenantId, fileUrl) {
-  try {
-    console.log(`Creating embeddings for ${fragments.length} fragments`);
-    for (const fragment of fragments) {
+  console.log(`Creating embeddings for ${fragments.length} fragments`);
+  if (!fragments.length) return true;
+
+  let index = 0;
+  async function worker() {
+    while (index < fragments.length) {
+      const current = index++;
+      const fragment = fragments[current];
       const referenceId = crypto.randomUUID();
-      console.log("Creating embedding for fragment", referenceId);
       await createEmbedding(tenantId, fragment, "file", referenceId, {
         fileUrl,
       });
-      console.log("Embedding created for fragment", referenceId);
     }
+  }
+
+  try {
+    const workers = Array.from(
+      { length: Math.min(EMBEDDING_CONCURRENCY, fragments.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
+    return true;
   } catch (error) {
-    console.log(error);
+    console.error("Error creando embeddings:", error);
     return null;
   }
 }
