@@ -85,6 +85,12 @@ function normalizeFileType(fileType = "", fileUrl = "") {
     return normalizedType === "doc" ? "doc" : "docx";
   }
 
+  if (["txt", "text", "text/plain", "url", "html", "text/html"].includes(normalizedType)) {
+    return normalizedType === "html" || normalizedType === "text/html"
+      ? "html"
+      : "txt";
+  }
+
   const urlWithoutQuery = String(fileUrl || "")
     .split("?")[0]
     .toLowerCase();
@@ -99,6 +105,10 @@ function normalizeFileType(fileType = "", fileUrl = "") {
 
   if (urlWithoutQuery.endsWith(".docx")) {
     return "docx";
+  }
+
+  if (urlWithoutQuery.endsWith(".txt") || urlWithoutQuery.endsWith(".html") || urlWithoutQuery.endsWith(".htm")) {
+    return urlWithoutQuery.endsWith(".txt") ? "txt" : "html";
   }
 
   return normalizedType;
@@ -124,6 +134,11 @@ async function extractFileContent(fileUrl, fileType) {
       case "doc":
         content = await extractDocContent(fileUrl);
         break;
+      case "txt":
+      case "html":
+      case "url":
+        content = await extractTextContent(fileUrl);
+        break;
       default:
         content = null;
         break;
@@ -139,6 +154,24 @@ async function extractFileContent(fileUrl, fileType) {
       text: null,
       metadata: null,
     };
+  }
+}
+
+async function extractTextContent(url) {
+  try {
+    const response = await axios.get(url, {
+      responseType: "arraybuffer",
+      timeout: 30000,
+      maxContentLength: 5 * 1024 * 1024,
+    });
+    const text = Buffer.from(response.data).toString("utf8");
+    return {
+      text: text || null,
+      metadata: { Fuente: "url/txt" },
+    };
+  } catch (error) {
+    console.error("Error al extraer contenido de texto:", error);
+    return { text: null, metadata: null };
   }
 }
 
