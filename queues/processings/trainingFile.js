@@ -7,6 +7,8 @@ const {
 } = require("../../controllers/fileController");
 const wsManager = require("../../services/websocket");
 
+const PROCESS_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutos máx por archivo
+
 async function notifyRefresh(userId) {
   if (!userId) return;
   try {
@@ -19,49 +21,82 @@ async function notifyRefresh(userId) {
   }
 }
 
-async function markError(fileUrl, companyId, userId) {
+async function markStatus(fileUrl, companyId, userId, status, fileId = null) {
   try {
-    if (fileUrl) {
-      await updateTrainingFileStatus(fileUrl, "error", companyId || null);
+    if (fileId || fileUrl) {
+      await updateTrainingFileStatus(
+        fileUrl,
+        status,
+        companyId || null,
+        fileId || null
+      );
     }
   } catch (err) {
-    console.error("No se pudo marcar training file como error:", err);
+    console.error("No se pudo actualizar training file status:", err);
   }
   await notifyRefresh(userId);
 }
 
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Timeout (${ms}ms) en ${label}`)),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function processTrainingFile(message) {
-  const { fileUrl, extension, tenantId, companyId, userId, action } = message || {};
+  const {
+    fileUrl,
+    fileId,
+    extension,
+    tenantId,
+    companyId,
+    userId,
+    action,
+  } = message || {};
 
   try {
     if (action === "create") {
-      let status = "ready";
+      const run = async () => {
+        let status = "ready";
 
-      const dataContent = await extractFileContent(fileUrl, extension);
-      let content = dataContent?.text || null;
+        const dataContent = await extractFileContent(fileUrl, extension);
+        let content = dataContent?.text || null;
 
-      if (content && typeof content === "string") {
-        content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
-      }
+        if (content && typeof content === "string") {
+          content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
+        }
 
-      if (!content) {
-        status = "error";
-      } else {
-        const fragments = splitTextForEmbeddings(content);
-        if (fragments.length > 0) {
-          const embedded = await createEmbeddingsForFragments(
-            fragments,
-            tenantId,
-            fileUrl
-          );
-          if (!embedded) {
-            status = "error";
+        if (!content) {
+          status = "error";
+        } else {
+          const fragments = splitTextForEmbeddings(content);
+          if (fragments.length > 0) {
+            const embedded = await createEmbeddingsForFragments(
+              fragments,
+              tenantId,
+              fileUrl
+            );
+            if (!embedded) {
+              status = "error";
+            }
           }
         }
-      }
 
-      await updateTrainingFileStatus(fileUrl, status, companyId || null);
-      await notifyRefresh(userId);
+        await updateTrainingFileStatus(
+          fileUrl,
+          status,
+          companyId || null,
+          fileId || null
+        );
+        await notifyRefresh(userId);
+      };
+
+      await withTimeout(run(), PROCESS_TIMEOUT_MS, "processTrainingFile");
     }
 
     if (action === "delete") {
@@ -74,7 +109,7 @@ async function processTrainingFile(message) {
     };
   } catch (error) {
     console.error("Error al procesar el archivo de entrenamiento:", error);
-    await markError(fileUrl, companyId, userId);
+    await markStatus(fileUrl, companyId, userId, "error", fileId);
     return { status: "failed", error: error.message };
   }
 }
