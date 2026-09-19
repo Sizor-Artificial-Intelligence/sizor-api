@@ -139,13 +139,31 @@ async function extractFileContent(fileUrl, fileType) {
       case "url":
         content = await extractTextContent(fileUrl);
         break;
-      default:
-        content = null;
+      default: {
+        // Fallback: training from URL guarda .txt en MatuDB con file_type=url
+        const lowerUrl = String(fileUrl || "").split("?")[0].toLowerCase();
+        if (
+          fileType === "url" ||
+          lowerUrl.endsWith(".txt") ||
+          lowerUrl.endsWith(".html") ||
+          lowerUrl.endsWith(".htm")
+        ) {
+          content = await extractTextContent(fileUrl);
+        } else {
+          content = null;
+        }
         break;
+      }
     }
 
+    const text = content?.text || null;
+    console.log(
+      "DEBUG: Contenido del archivo ->",
+      text ? `${text.length} chars` : null,
+    );
+
     return {
-      text: content?.text || null,
+      text,
       metadata: content?.metadata || null,
     };
   } catch (error) {
@@ -163,14 +181,26 @@ async function extractTextContent(url) {
       responseType: "arraybuffer",
       timeout: 30000,
       maxContentLength: 5 * 1024 * 1024,
+      headers: {
+        Accept: "text/plain, text/html, */*",
+        "User-Agent": "SizorAPI/1.0",
+      },
+      validateStatus: (status) => status >= 200 && status < 400,
     });
-    const text = Buffer.from(response.data).toString("utf8");
+    const text = Buffer.from(response.data).toString("utf8").trim();
+    if (!text) {
+      console.warn("DEBUG: extractTextContent vacío:", url, "status", response.status);
+    }
     return {
       text: text || null,
       metadata: { Fuente: "url/txt" },
     };
   } catch (error) {
-    console.error("Error al extraer contenido de texto:", error);
+    console.error(
+      "Error al extraer contenido de texto:",
+      error?.response?.status || error?.code || error?.message || error,
+      url,
+    );
     return { text: null, metadata: null };
   }
 }
