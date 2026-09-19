@@ -15,7 +15,7 @@ function qdrantHeaders(tenantId) {
 async function getEmbeddingByReferenceId(tenantId, referenceId) {
   try {
     const API_URL = process.env.API_URL;
-    const response = await axios.get(`${API_URL}/qdrant/${referenceId}`, {
+    const response = await axios.get(`${API_URL}/api/qdrant/${referenceId}`, {
       headers: qdrantHeaders(tenantId),
       timeout: AXIOS_TIMEOUT_MS,
     });
@@ -33,7 +33,7 @@ async function createEmbedding(tenantId, text, type, referenceId, params = {}) {
   try {
     const API_URL = process.env.API_URL;
     const response = await axios.post(
-      `${API_URL}/qdrant`,
+      `${API_URL}/api/qdrant`,
       {
         text,
         type,
@@ -65,7 +65,7 @@ async function updateEmbeddingByReferenceId(
   try {
     const API_URL = process.env.API_URL;
     const response = await axios.post(
-      `${API_URL}/qdrant/${referenceId}`,
+      `${API_URL}/api/qdrant/${referenceId}`,
       {
         text,
         type,
@@ -90,7 +90,7 @@ async function deleteEmbeddingsByParams(tenantId, params = {}) {
   try {
     const API_URL = process.env.API_URL;
     const response = await axios.post(
-      `${API_URL}/qdrant`,
+      `${API_URL}/api/qdrant`,
       {
         action: "delete",
         params,
