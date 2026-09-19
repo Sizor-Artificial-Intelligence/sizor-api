@@ -177,19 +177,33 @@ async function extractFileContent(fileUrl, fileType) {
 
 async function extractTextContent(url) {
   try {
+    const headers = {
+      Accept: "text/plain, text/html, */*",
+      "User-Agent": "SizorAPI/1.0",
+    };
+    // MatuDB storage exige apikey aunque la URL parezca pública
+    if (
+      String(url).includes("/storage/") &&
+      process.env.MATUDB_API_KEY
+    ) {
+      headers.apikey = process.env.MATUDB_API_KEY;
+    }
+
     const response = await axios.get(url, {
       responseType: "arraybuffer",
       timeout: 30000,
       maxContentLength: 5 * 1024 * 1024,
-      headers: {
-        Accept: "text/plain, text/html, */*",
-        "User-Agent": "SizorAPI/1.0",
-      },
+      headers,
       validateStatus: (status) => status >= 200 && status < 400,
     });
     const text = Buffer.from(response.data).toString("utf8").trim();
     if (!text) {
-      console.warn("DEBUG: extractTextContent vacío:", url, "status", response.status);
+      console.warn(
+        "DEBUG: extractTextContent vacío:",
+        url,
+        "status",
+        response.status,
+      );
     }
     return {
       text: text || null,
