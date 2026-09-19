@@ -57,6 +57,7 @@ async function processTrainingFile(message) {
     companyId,
     userId,
     action,
+    textContent,
   } = message || {};
 
   try {
@@ -64,8 +65,22 @@ async function processTrainingFile(message) {
       const run = async () => {
         let status = "ready";
 
-        const dataContent = await extractFileContent(fileUrl, extension);
-        let content = dataContent?.text || null;
+        // Preferir texto ya enviado en la cola (URLs de entrenamiento)
+        let content =
+          typeof textContent === "string" && textContent.trim()
+            ? textContent
+            : null;
+
+        if (!content) {
+          const dataContent = await extractFileContent(fileUrl, extension);
+          content = dataContent?.text || null;
+        } else {
+          console.log(
+            "DEBUG: Usando textContent de la cola ->",
+            content.length,
+            "chars"
+          );
+        }
 
         if (content && typeof content === "string") {
           content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
