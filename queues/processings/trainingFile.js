@@ -7,53 +7,113 @@ const {
 } = require("../../controllers/fileController");
 const wsManager = require("../../services/websocket");
 
-async function processTrainingFile(message) {
+const PROCESS_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutos máx por archivo
+
+async function notifyRefresh(userId) {
+  if (!userId) return;
   try {
-    const { fileUrl, extension, tenantId, companyId, userId, action } = message;
+    wsManager.sendToUser(userId, {
+      timestamp: new Date().toISOString(),
+      type: "refreshLoaders",
+    });
+  } catch (err) {
+    console.warn("No se pudo notificar refreshLoaders:", err?.message || err);
+  }
+}
 
-    // Crear embeddings para el archivo
-    if (action === "create") {
-      let status = "ready";
-
-      // # Extraer contenido del archivo
-      const dataContent = await extractFileContent(fileUrl, extension);
-      let content = dataContent?.text || null;
-
-      // Eliminar marcas de paginación solo si content no es null
-      if (content && typeof content === "string") {
-        content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
-      }
-
-      console.log("DEBUG: Contenido del archivo -> " + content);
-
-      // # Si no se pudo extraer el contenido, cambiar estado del archivo a error
-      if (!content) {
-        status = "error";
-      } else {
-        // # Dividir el contenido en fragmentos para embeddings
-        const fragments = splitTextForEmbeddings(content);
-
-        // # Crear embeddings para los fragmentos
-        if (fragments.length > 0) {
-          await createEmbeddingsForFragments(fragments, tenantId, fileUrl);
-        }
-      }
-
-      // Actualizar el estado del archivo en MatuDB (schema main)
+async function markStatus(fileUrl, companyId, userId, status, fileId = null) {
+  try {
+    if (fileId || fileUrl) {
       await updateTrainingFileStatus(
         fileUrl,
         status,
-        companyId || null
+        companyId || null,
+        fileId || null
       );
+    }
+  } catch (err) {
+    console.error("No se pudo actualizar training file status:", err);
+  }
+  await notifyRefresh(userId);
+}
 
-      // Realtime update
-      wsManager.sendToUser(userId, {
-        timestamp: new Date().toISOString(),
-        type: "refreshLoaders",
-      });
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Timeout (${ms}ms) en ${label}`)),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function processTrainingFile(message) {
+  const {
+    fileUrl,
+    fileId,
+    extension,
+    tenantId,
+    companyId,
+    userId,
+    action,
+    textContent,
+  } = message || {};
+
+  try {
+    if (action === "create") {
+      const run = async () => {
+        let status = "ready";
+
+        // Preferir texto ya enviado en la cola (URLs de entrenamiento)
+        let content =
+          typeof textContent === "string" && textContent.trim()
+            ? textContent
+            : null;
+
+        if (!content) {
+          const dataContent = await extractFileContent(fileUrl, extension);
+          content = dataContent?.text || null;
+        } else {
+          console.log(
+            "DEBUG: Usando textContent de la cola ->",
+            content.length,
+            "chars"
+          );
+        }
+
+        if (content && typeof content === "string") {
+          content = content.replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "");
+        }
+
+        if (!content) {
+          status = "error";
+        } else {
+          const fragments = splitTextForEmbeddings(content);
+          if (fragments.length > 0) {
+            const embedded = await createEmbeddingsForFragments(
+              fragments,
+              tenantId,
+              fileUrl
+            );
+            if (!embedded) {
+              status = "error";
+            }
+          }
+        }
+
+        await updateTrainingFileStatus(
+          fileUrl,
+          status,
+          companyId || null,
+          fileId || null
+        );
+        await notifyRefresh(userId);
+      };
+
+      await withTimeout(run(), PROCESS_TIMEOUT_MS, "processTrainingFile");
     }
 
-    // Eliminar embeddings para el archivo
     if (action === "delete") {
       await deleteEmbeddingsForFiles(tenantId, [fileUrl]);
     }
@@ -64,6 +124,7 @@ async function processTrainingFile(message) {
     };
   } catch (error) {
     console.error("Error al procesar el archivo de entrenamiento:", error);
+    await markStatus(fileUrl, companyId, userId, "error", fileId);
     return { status: "failed", error: error.message };
   }
 }

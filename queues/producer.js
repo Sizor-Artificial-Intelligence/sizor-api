@@ -16,10 +16,11 @@ async function getChannel() {
 
 async function addToQueue(queueName, data) {
   if (process.env.RABBITMQ_ENABLED === "false") {
-    console.warn(
-      `⚠️ RabbitMQ off — mensaje a |${queueName}| no encolado (local sin broker)`
+    const err = new Error(
+      `RabbitMQ deshabilitado (RABBITMQ_ENABLED=false); no se encoló |${queueName}|`
     );
-    return;
+    console.warn(`⚠️ ${err.message}`);
+    throw err;
   }
 
   try {
@@ -34,6 +35,7 @@ async function addToQueue(queueName, data) {
     console.log(`Mensaje enviado a la cola |${queueName}|`);
   } catch (error) {
     console.error("Error enviando mensaje a la cola:", error);
+    throw error;
   }
 }
 

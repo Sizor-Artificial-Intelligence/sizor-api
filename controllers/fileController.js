@@ -85,6 +85,12 @@ function normalizeFileType(fileType = "", fileUrl = "") {
     return normalizedType === "doc" ? "doc" : "docx";
   }
 
+  if (["txt", "text", "text/plain", "url", "html", "text/html"].includes(normalizedType)) {
+    return normalizedType === "html" || normalizedType === "text/html"
+      ? "html"
+      : "txt";
+  }
+
   const urlWithoutQuery = String(fileUrl || "")
     .split("?")[0]
     .toLowerCase();
@@ -99,6 +105,10 @@ function normalizeFileType(fileType = "", fileUrl = "") {
 
   if (urlWithoutQuery.endsWith(".docx")) {
     return "docx";
+  }
+
+  if (urlWithoutQuery.endsWith(".txt") || urlWithoutQuery.endsWith(".html") || urlWithoutQuery.endsWith(".htm")) {
+    return urlWithoutQuery.endsWith(".txt") ? "txt" : "html";
   }
 
   return normalizedType;
@@ -124,13 +134,36 @@ async function extractFileContent(fileUrl, fileType) {
       case "doc":
         content = await extractDocContent(fileUrl);
         break;
-      default:
-        content = null;
+      case "txt":
+      case "html":
+      case "url":
+        content = await extractTextContent(fileUrl);
         break;
+      default: {
+        // Fallback: training from URL guarda .txt en MatuDB con file_type=url
+        const lowerUrl = String(fileUrl || "").split("?")[0].toLowerCase();
+        if (
+          fileType === "url" ||
+          lowerUrl.endsWith(".txt") ||
+          lowerUrl.endsWith(".html") ||
+          lowerUrl.endsWith(".htm")
+        ) {
+          content = await extractTextContent(fileUrl);
+        } else {
+          content = null;
+        }
+        break;
+      }
     }
 
+    const text = content?.text || null;
+    console.log(
+      "DEBUG: Contenido del archivo ->",
+      text ? `${text.length} chars` : null,
+    );
+
     return {
-      text: content?.text || null,
+      text,
       metadata: content?.metadata || null,
     };
   } catch (error) {
@@ -139,6 +172,50 @@ async function extractFileContent(fileUrl, fileType) {
       text: null,
       metadata: null,
     };
+  }
+}
+
+async function extractTextContent(url) {
+  try {
+    const headers = {
+      Accept: "text/plain, text/html, */*",
+      "User-Agent": "SizorAPI/1.0",
+    };
+    // MatuDB storage exige apikey aunque la URL parezca pública
+    if (
+      String(url).includes("/storage/") &&
+      process.env.MATUDB_API_KEY
+    ) {
+      headers.apikey = process.env.MATUDB_API_KEY;
+    }
+
+    const response = await axios.get(url, {
+      responseType: "arraybuffer",
+      timeout: 30000,
+      maxContentLength: 5 * 1024 * 1024,
+      headers,
+      validateStatus: (status) => status >= 200 && status < 400,
+    });
+    const text = Buffer.from(response.data).toString("utf8").trim();
+    if (!text) {
+      console.warn(
+        "DEBUG: extractTextContent vacío:",
+        url,
+        "status",
+        response.status,
+      );
+    }
+    return {
+      text: text || null,
+      metadata: { Fuente: "url/txt" },
+    };
+  } catch (error) {
+    console.error(
+      "Error al extraer contenido de texto:",
+      error?.response?.status || error?.code || error?.message || error,
+      url,
+    );
+    return { text: null, metadata: null };
   }
 }
 
@@ -512,20 +589,33 @@ function splitTextForEmbeddings(
   return recursiveSplit(text, 0);
 }
 
-// Crear embeddings para los fragmentos
+const EMBEDDING_CONCURRENCY = 6;
+
 async function createEmbeddingsForFragments(fragments = [], tenantId, fileUrl) {
-  try {
-    console.log(`Creating embeddings for ${fragments.length} fragments`);
-    for (const fragment of fragments) {
+  console.log(`Creating embeddings for ${fragments.length} fragments`);
+  if (!fragments.length) return true;
+
+  let index = 0;
+  async function worker() {
+    while (index < fragments.length) {
+      const current = index++;
+      const fragment = fragments[current];
       const referenceId = crypto.randomUUID();
-      console.log("Creating embedding for fragment", referenceId);
       await createEmbedding(tenantId, fragment, "file", referenceId, {
         fileUrl,
       });
-      console.log("Embedding created for fragment", referenceId);
     }
+  }
+
+  try {
+    const workers = Array.from(
+      { length: Math.min(EMBEDDING_CONCURRENCY, fragments.length) },
+      () => worker()
+    );
+    await Promise.all(workers);
+    return true;
   } catch (error) {
-    console.log(error);
+    console.error("Error creando embeddings:", error);
     return null;
   }
 }

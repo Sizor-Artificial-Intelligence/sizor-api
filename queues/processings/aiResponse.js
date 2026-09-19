@@ -5,7 +5,29 @@ const contactMessageCache = new Map();
 
 // Configuración de consolidación
 const CONSOLIDATION_DELAY = 3000; // 3 segundos para consolidar mensajes
-const MAX_CONSOLIDATION_TIME = 10000; // Máximo 10 segundos esperando
+
+function cacheKeyFor(tenantId, companyId, contactId) {
+  // Separador que no aparece en UUIDs ni en tenant "main"
+  return `${tenantId}::${companyId}::${contactId}`;
+}
+
+function parseCacheKey(cacheKey) {
+  const [tenantId, companyId, contactId] = cacheKey.split("::");
+  return { tenantId, companyId, contactId };
+}
+
+function toAiMessage(messageData, timestamp) {
+  const text = messageData?.text || messageData?.content || null;
+  return {
+    role: "user",
+    content: text,
+    text,
+    attachments: messageData?.attachments || null,
+    // type del adjunto/mensaje (TEXT/IMAGE/…) — no usar como role del LLM
+    messageType: messageData?.messageType || messageData?.type || "TEXT",
+    timestamp: timestamp || Date.now(),
+  };
+}
 
 /**
  * Procesa mensajes de IA con consolidación inteligente
@@ -14,23 +36,28 @@ const MAX_CONSOLIDATION_TIME = 10000; // Máximo 10 segundos esperando
  */
 async function processAIResponse(message) {
   try {
-    const { tenantId, companyId, contactId, messageData, timestamp } = message;
+    const {
+      tenantId,
+      companyId,
+      contactId,
+      messageData,
+      timestamp,
+      socialNetwork,
+    } = message;
 
-    // Generar clave única para el contacto
-    const cacheKey = `${tenantId}_${companyId}_${contactId}`;
+    const cacheKey = cacheKeyFor(tenantId, companyId, contactId);
+    const incoming = toAiMessage(messageData, timestamp);
 
-    // Verificar si ya hay un procesamiento en curso para este contacto
     if (contactMessageCache.has(cacheKey)) {
       const existingProcess = contactMessageCache.get(cacheKey);
 
-      // Si el proceso existente está en consolidación, agregar este mensaje
-      if (existingProcess.status === "consolidating") {
-        existingProcess.messages.push({
-          ...messageData,
-          timestamp: timestamp || Date.now(),
-        });
+      if (socialNetwork) {
+        existingProcess.socialNetwork = socialNetwork;
+      }
 
-        // Extender el tiempo de consolidación si es necesario
+      // Consolidando: sumar al batch actual
+      if (existingProcess.status === "consolidating") {
+        existingProcess.messages.push(incoming);
         clearTimeout(existingProcess.timeoutId);
         existingProcess.timeoutId = setTimeout(() => {
           processConsolidatedMessages(cacheKey);
@@ -42,31 +69,27 @@ async function processAIResponse(message) {
         };
       }
 
-      // Si ya hay un procesamiento activo, rechazar este mensaje (se reencolará)
+      // Procesando (LLM/envío): no reencolar a DELAY_QUEUE — guardar para el siguiente turno
       if (existingProcess.status === "processing") {
+        existingProcess.queuedMessages = existingProcess.queuedMessages || [];
+        existingProcess.queuedMessages.push(incoming);
         return {
-          status: "pending",
-          message: "Procesamiento en curso, reencolando",
+          status: "success",
+          message: "Mensaje encolado para el siguiente turno de IA",
         };
       }
     }
 
-    // Crear nuevo proceso de consolidación
     const consolidationProcess = {
       status: "consolidating",
-      messages: [
-        {
-          ...messageData,
-          timestamp: timestamp || Date.now(),
-        },
-      ],
+      messages: [incoming],
+      queuedMessages: [],
+      socialNetwork: socialNetwork || null,
       timeoutId: null,
       createdAt: Date.now(),
     };
 
     contactMessageCache.set(cacheKey, consolidationProcess);
-
-    // Configurar timeout para procesar mensajes consolidados
     consolidationProcess.timeoutId = setTimeout(() => {
       processConsolidatedMessages(cacheKey);
     }, CONSOLIDATION_DELAY);
@@ -89,32 +112,43 @@ async function processConsolidatedMessages(cacheKey) {
       return;
     }
 
-    // Marcar como procesando
     process.status = "processing";
 
     const messages = process.messages;
-    const [tenantId, companyId, contactId] = cacheKey.split("_");
-
-    // Consolidar el contenido de todos los mensajes
+    const { tenantId, companyId, contactId } = parseCacheKey(cacheKey);
+    const socialNetwork = process.socialNetwork || null;
     const consolidatedContent = consolidateMessages(messages);
 
-    // Enviar respuesta al sistema principal
     await sendAIResponseToMainSystem({
       tenantId,
       companyId,
       contactId,
-      response: null,
       originalMessagesCount: messages.length,
       messages,
       consolidatedContent,
+      socialNetwork,
     });
 
-    // Limpiar cache
+    const queued = process.queuedMessages || [];
     contactMessageCache.delete(cacheKey);
+
+    // Si llegaron mensajes mientras se generaba la respuesta, procesarlos ya
+    if (queued.length > 0) {
+      const next = {
+        status: "consolidating",
+        messages: queued,
+        queuedMessages: [],
+        socialNetwork,
+        timeoutId: null,
+        createdAt: Date.now(),
+      };
+      contactMessageCache.set(cacheKey, next);
+      next.timeoutId = setTimeout(() => {
+        processConsolidatedMessages(cacheKey);
+      }, CONSOLIDATION_DELAY);
+    }
   } catch (error) {
     console.error(`Error procesando mensajes consolidados:`, error);
-
-    // Limpiar cache en caso de error
     const process = contactMessageCache.get(cacheKey);
     if (process) {
       contactMessageCache.delete(cacheKey);
@@ -128,17 +162,18 @@ async function processConsolidatedMessages(cacheKey) {
  * @returns {Object} Contenido consolidado
  */
 function consolidateMessages(messages) {
-  // Ordenar mensajes por timestamp
-  const sortedMessages = messages.sort((a, b) => a.timestamp - b.timestamp);
+  const sortedMessages = [...messages].sort(
+    (a, b) => a.timestamp - b.timestamp
+  );
 
   const textMessages = [];
   const attachments = [];
 
   sortedMessages.forEach((msg, index) => {
-    if (msg.text) {
+    if (msg.text || msg.content) {
       textMessages.push({
         order: index + 1,
-        text: msg.text,
+        text: msg.text || msg.content,
         timestamp: new Date(msg.timestamp).toLocaleTimeString(),
       });
     }
@@ -154,13 +189,17 @@ function consolidateMessages(messages) {
     }
   });
 
+  const start = sortedMessages[0]?.timestamp || Date.now();
+  const end =
+    sortedMessages[sortedMessages.length - 1]?.timestamp || Date.now();
+
   return {
     messageCount: messages.length,
     textMessages,
     attachments,
     timeRange: {
-      start: new Date(sortedMessages[0].timestamp),
-      end: new Date(sortedMessages[sortedMessages.length - 1].timestamp),
+      start: new Date(start),
+      end: new Date(end),
     },
     isMultipleMessages: messages.length > 1,
   };
@@ -182,17 +221,20 @@ async function sendAIResponseToMainSystem(data) {
       socialNetwork,
     } = data;
 
-    const API_URL = process.env.API_URL;
+    const API_URL = (process.env.API_URL || "").replace(/\/+$/, "");
     const API_KEY = process.env.SIZOR_API_KEY;
 
     if (!API_KEY) {
       console.warn("API_KEY no configurada para enviar respuesta de IA");
       return;
     }
+    if (!API_URL) {
+      console.warn("API_URL no configurada para enviar respuesta de IA");
+      return;
+    }
 
-    // Enviar respuesta al sistema principal
     const response_data = await axios.post(
-      `${API_URL}/ai-response`,
+      `${API_URL}/api/ai-response`,
       {
         tenantId,
         companyId,
@@ -212,12 +254,22 @@ async function sendAIResponseToMainSystem(data) {
           "Content-Type": "application/json",
           "X-API-KEY": API_KEY,
         },
-        timeout: 60000,
-      },
+        timeout: 120000,
+      }
     );
 
     if (response_data.status === 200) {
-      console.log(`Respuesta de IA enviada exitosamente al sistema principal`);
+      const body = response_data.data;
+      if (body && body.success === false) {
+        console.warn(
+          `Front devolvió success:false en /ai-response:`,
+          body.message || body
+        );
+      } else {
+        console.log(
+          `Respuesta de IA enviada exitosamente al sistema principal`
+        );
+      }
     } else {
       throw new Error(`Error del servidor: ${response_data.status}`);
     }

@@ -53,12 +53,25 @@ function matuFrom(table) {
 /**
  * Actualiza training_files.status por file_url (reemplazo del UPDATE TrainingFile MySQL).
  */
-async function updateTrainingFileStatus(fileUrl, status, companyId = null) {
-  let q = matuFrom("training_files").eq("file_url", fileUrl);
+async function updateTrainingFileStatus(
+  fileUrl,
+  status,
+  companyId = null,
+  fileId = null
+) {
+  let q = matuFrom("training_files");
+  if (fileId) {
+    q = q.eq("id", fileId);
+  } else {
+    q = q.eq("file_url", fileUrl);
+  }
   if (companyId) {
     q = q.eq("company_id", companyId);
   }
-  const { error } = await q.update({ status });
+  const { error } = await q.update({
+    status,
+    updated_at: new Date().toISOString(),
+  });
   if (error) {
     throw new Error(error.message || "No se pudo actualizar training_files");
   }

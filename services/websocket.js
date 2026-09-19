@@ -93,89 +93,85 @@ class WebSocketManager {
     }
   }
 
+  // El front espera tipos con guión (new-contact). También se acepta underscore.
+  eventPayload(type, extra) {
+    return {
+      type,
+      ...extra,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   // Notificar nuevo mensaje
   notifyNewMessage(companyId, contactId, message) {
-    this.broadcastToCompany(companyId, {
-      type: "new_message",
-      contactId,
-      message,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("new-message", { contactId, message })
+    );
   }
 
   // Notificar mensaje leído
   notifyMessageRead(companyId, contactId, messageIds) {
-    this.broadcastToCompany(companyId, {
-      type: "message_read",
-      contactId,
-      messageIds,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("message-read", { contactId, messageIds })
+    );
   }
 
   // Notificar actualización de contactos
   notifyContactsUpdate(companyId, contacts) {
-    this.broadcastToCompany(companyId, {
-      type: "contacts_update",
-      contacts,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("contacts-update", { contacts })
+    );
   }
 
   // Notificar nuevo contacto
   notifyNewContact(companyId, contact) {
-    this.broadcastToCompany(companyId, {
-      type: "new_contact",
-      contact,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("new-contact", { contact })
+    );
   }
 
   // Notificar actualización de reacción
   notifyReactionUpdate(companyId, contactId, messageId, reaction) {
-    this.broadcastToCompany(companyId, {
-      type: "reaction_update",
-      contactId,
-      messageId,
-      reaction,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("reaction-update", { contactId, messageId, reaction })
+    );
   }
 
   // Notificar actualización de tokens
   notifyTokensUpdate(companyId, tokensData) {
-    this.broadcastToCompany(companyId, {
-      type: "tokens_update",
-      tokensData,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("tokens-update", { tokensData })
+    );
   }
 
   // Notificar nueva notificación
   notifyNewNotification(companyId, notification) {
-    this.broadcastToCompany(companyId, {
-      type: "new_notification",
-      notification,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("new-notification", { notification })
+    );
   }
 
   // Notificar actualización de contador de notificaciones
   notifyNotificationsCountUpdate(companyId, unreadCount) {
-    this.broadcastToCompany(companyId, {
-      type: "notifications_count_update",
-      unreadCount,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("notifications-count-update", { unreadCount })
+    );
   }
 
   // Notificar actualización de smart inbox
   notifySmartInboxUpdate(companyId, unreadCount) {
-    this.broadcastToCompany(companyId, {
-      type: "smart_inbox_update",
-      unreadCount,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("smart-inbox-update", { unreadCount })
+    );
   }
 
   // Notificar actualización de asignación de chat
@@ -187,25 +183,24 @@ class WebSocketManager {
     assignedUser,
     reason
   ) {
-    this.broadcastToCompany(companyId, {
-      type: "chat_assignment_update",
-      contactId,
-      assignedUserId,
-      assignedUserName,
-      reason,
-      assignedUser,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("chat-assignment-update", {
+        contactId,
+        assignedUserId,
+        assignedUserName,
+        reason,
+        assignedUser,
+      })
+    );
   }
 
   // Notificar mensaje del sistema
   notifySystemMessage(companyId, contactId, message) {
-    this.broadcastToCompany(companyId, {
-      type: "system_message",
-      contactId,
-      message,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("system-message", { contactId, message })
+    );
   }
 
   // Notificar actualización de análisis de sentimiento
@@ -216,14 +211,15 @@ class WebSocketManager {
     leadTemperature,
     confidence
   ) {
-    this.broadcastToCompany(companyId, {
-      type: "sentiment_analysis_update",
-      contactId,
-      sentiment,
-      leadTemperature,
-      confidence,
-      timestamp: new Date().toISOString(),
-    });
+    this.broadcastToCompany(
+      companyId,
+      this.eventPayload("sentiment-analysis-update", {
+        contactId,
+        sentiment,
+        leadTemperature,
+        confidence,
+      })
+    );
   }
 
   // Enviar mensaje a un usuario específico
